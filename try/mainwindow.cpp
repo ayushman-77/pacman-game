@@ -15,14 +15,15 @@ inline uint qHash(const QPair<int,int> &key, uint seed = 0) {
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), cellSize(25), rows(25), cols(25),
     playerX(1), playerY(1), mouthOpen(0),
-    playerDirX(1), playerDirY(0)
+    playerDirX(1), playerDirY(0), currentLevel(3)
 {
     frame = new MyLabel(this);
     frame->setFixedSize(cols * cellSize, rows * cellSize);
     frame->setStyleSheet("background:black");
     setCentralWidget(frame);
 
-    initMaze();
+    setupLevels();          // <-- define all mazes here
+    initMaze(currentLevel); // <-- load initial maze layout
     initFood();
     initEnemies();
 
@@ -33,26 +34,428 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() {}
 
-void MainWindow::initMaze()
+void MainWindow::setupLevels() {
+    QVector<QPoint> lvl1 = {
+        QPoint(1, 2),
+        QPoint(2, 2),
+        QPoint(3, 2),
+        QPoint(3, 3),
+        QPoint(3, 4),
+        QPoint(2, 4),
+        QPoint(6, 2),
+        QPoint(6, 3),
+        QPoint(6, 4),
+        QPoint(7, 4),
+        QPoint(8, 4),
+        QPoint(8, 3),
+        QPoint(10, 10),
+        QPoint(11, 10),
+        QPoint(12, 10),
+        QPoint(13, 10),
+        QPoint(15, 10),
+        QPoint(14, 10),
+        QPoint(15, 11),
+        QPoint(15, 12),
+        QPoint(13, 13),
+        QPoint(14, 13),
+        QPoint(15, 13),
+        QPoint(10, 13),
+        QPoint(9, 13),
+        QPoint(8, 13),
+        QPoint(8, 12),
+        QPoint(8, 11),
+        QPoint(8, 10),
+        QPoint(9, 10),
+        QPoint(10, 3),
+        QPoint(11, 3),
+        QPoint(11, 4),
+        QPoint(11, 5),
+        QPoint(11, 6),
+        QPoint(10, 6),
+        QPoint(9, 6),
+        QPoint(16, 2),
+        QPoint(15, 2),
+        QPoint(15, 3),
+        QPoint(15, 4),
+        QPoint(15, 5),
+        QPoint(16, 5),
+        QPoint(17, 5),
+        QPoint(18, 5),
+        QPoint(18, 4),
+        QPoint(18, 3),
+        QPoint(19, 3),
+        QPoint(20, 3),
+        QPoint(20, 4),
+        QPoint(13, 4),
+        QPoint(13, 5),
+        QPoint(13, 6),
+        QPoint(13, 7),
+        QPoint(14, 7),
+        QPoint(15, 7),
+        QPoint(16, 7),
+        QPoint(17, 7),
+        QPoint(18, 7),
+        QPoint(20, 6),
+        QPoint(20, 7),
+        QPoint(22, 3),
+        QPoint(23, 3),
+        QPoint(22, 4),
+        QPoint(22, 5),
+        QPoint(1, 6),
+        QPoint(2, 6),
+        QPoint(3, 6),
+        QPoint(3, 7),
+        QPoint(3, 9),
+        QPoint(3, 10),
+        QPoint(2, 10),
+        QPoint(1, 10),
+        QPoint(5, 8),
+        QPoint(5, 9),
+        QPoint(5, 10),
+        QPoint(5, 11),
+        QPoint(6, 11),
+        QPoint(6, 12),
+        QPoint(6, 13),
+        QPoint(5, 13),
+        QPoint(4, 13),
+        QPoint(2, 13),
+        QPoint(3, 13),
+        QPoint(2, 12),
+        QPoint(7, 8),
+        QPoint(7, 7),
+        QPoint(7, 6),
+        QPoint(6, 6),
+        QPoint(5, 6),
+        QPoint(17, 13),
+        QPoint(18, 13),
+        QPoint(19, 13),
+        QPoint(20, 13),
+        QPoint(20, 12),
+        QPoint(20, 11),
+        QPoint(23, 12),
+        QPoint(20, 10),
+        QPoint(21, 10),
+        QPoint(22, 10),
+        QPoint(9, 8),
+        QPoint(10, 8),
+        QPoint(11, 8),
+        QPoint(1, 15),
+        QPoint(2, 15),
+        QPoint(3, 15),
+        QPoint(4, 15),
+        QPoint(4, 16),
+        QPoint(4, 17),
+        QPoint(4, 18),
+        QPoint(5, 18),
+        QPoint(6, 18),
+        QPoint(2, 18),
+        QPoint(2, 17),
+        QPoint(2, 19),
+        QPoint(2, 20),
+        QPoint(3, 20),
+        QPoint(4, 20),
+        QPoint(4, 21),
+        QPoint(7, 18),
+        QPoint(7, 19),
+        QPoint(6, 22),
+        QPoint(6, 21),
+        QPoint(7, 21),
+        QPoint(8, 21),
+        QPoint(9, 21),
+        QPoint(9, 16),
+        QPoint(9, 17),
+        QPoint(9, 18),
+        QPoint(9, 15),
+        QPoint(7, 15),
+        QPoint(8, 15),
+        QPoint(4, 22),
+        QPoint(14, 8),
+        QPoint(11, 15),
+        QPoint(12, 15),
+        QPoint(13, 15),
+        QPoint(14, 15),
+        QPoint(14, 16),
+        QPoint(14, 17),
+        QPoint(13, 17),
+        QPoint(12, 17),
+        QPoint(12, 18),
+        QPoint(12, 19),
+        QPoint(11, 19),
+        QPoint(17, 14),
+        QPoint(17, 15),
+        QPoint(17, 16),
+        QPoint(17, 17),
+        QPoint(16, 17),
+        QPoint(16, 18),
+        QPoint(16, 19),
+        QPoint(15, 19),
+        QPoint(15, 20),
+        QPoint(17, 12),
+        QPoint(17, 11),
+        QPoint(17, 10),
+        QPoint(15, 21),
+        QPoint(14, 21),
+        QPoint(13, 21),
+        QPoint(19, 17),
+        QPoint(19, 18),
+        QPoint(19, 19),
+        QPoint(18, 19),
+        QPoint(19, 16),
+        QPoint(20, 16),
+        QPoint(21, 16),
+        QPoint(22, 16),
+        QPoint(22, 17),
+        QPoint(20, 21),
+        QPoint(21, 21),
+        QPoint(19, 21),
+        QPoint(21, 18),
+        QPoint(22, 18),
+        QPoint(21, 19),
+        QPoint(21, 20),
+        QPoint(18, 21),
+        QPoint(18, 22),
+        QPoint(22, 12),
+        QPoint(22, 13),
+        QPoint(22, 14)
+    };
+
+    QVector<QPoint> lvl2 = {
+        QPoint(5, 2),
+        QPoint(5, 3),
+        QPoint(5, 4),
+        QPoint(5, 5),
+        QPoint(4, 5),
+        QPoint(2, 2),
+        QPoint(2, 3),
+        QPoint(3, 2),
+        QPoint(3, 3),
+        QPoint(3, 5),
+        QPoint(3, 6),
+        QPoint(3, 7),
+        QPoint(2, 9),
+        QPoint(3, 9),
+        QPoint(3, 10),
+        QPoint(3, 11),
+        QPoint(3, 12),
+        QPoint(2, 12),
+        QPoint(16, 10),
+        QPoint(15, 9),
+        QPoint(14, 8),
+        QPoint(13, 8),
+        QPoint(12, 9),
+        QPoint(11, 10),
+        QPoint(16, 14),
+        QPoint(15, 15),
+        QPoint(11, 14),
+        QPoint(12, 15),
+        QPoint(13, 16),
+        QPoint(14, 16),
+        QPoint(16, 11),
+        QPoint(16, 13),
+        QPoint(11, 11),
+        QPoint(11, 13),
+        QPoint(17, 11),
+        QPoint(18, 11),
+        QPoint(17, 13),
+        QPoint(18, 13),
+        QPoint(5, 11),
+        QPoint(6, 11),
+        QPoint(7, 11),
+        QPoint(9, 8),
+        QPoint(9, 9),
+        QPoint(9, 10),
+        QPoint(9, 11),
+        QPoint(8, 11),
+        QPoint(5, 9),
+        QPoint(6, 9),
+        QPoint(7, 9),
+        QPoint(7, 6),
+        QPoint(7, 7),
+        QPoint(6, 7),
+        QPoint(6, 5),
+        QPoint(7, 5),
+        QPoint(8, 3),
+        QPoint(8, 2),
+        QPoint(10, 2),
+        QPoint(9, 2),
+        QPoint(11, 2),
+        QPoint(12, 2),
+        QPoint(13, 2),
+        QPoint(11, 3),
+        QPoint(11, 4),
+        QPoint(10, 4),
+        QPoint(10, 5),
+        QPoint(10, 6),
+        QPoint(14, 5),
+        QPoint(15, 5),
+        QPoint(15, 4),
+        QPoint(15, 3),
+        QPoint(16, 3),
+        QPoint(17, 3),
+        QPoint(17, 2),
+        QPoint(18, 2),
+        QPoint(19, 2),
+        QPoint(19, 3),
+        QPoint(19, 4),
+        QPoint(19, 5),
+        QPoint(18, 5),
+        QPoint(17, 5),
+        QPoint(19, 11),
+        QPoint(20, 11),
+        QPoint(19, 13),
+        QPoint(20, 13),
+        QPoint(22, 2),
+        QPoint(22, 3),
+        QPoint(21, 3),
+        QPoint(21, 4),
+        QPoint(21, 5),
+        QPoint(22, 5),
+        QPoint(22, 6),
+        QPoint(22, 7),
+        QPoint(21, 7),
+        QPoint(20, 7),
+        QPoint(18, 7),
+        QPoint(19, 7),
+        QPoint(22, 9),
+        QPoint(22, 10),
+        QPoint(20, 9),
+        QPoint(21, 9),
+        QPoint(19, 9),
+        QPoint(22, 13),
+        QPoint(22, 14),
+        QPoint(22, 15),
+        QPoint(22, 16),
+        QPoint(21, 16),
+        QPoint(20, 16),
+        QPoint(19, 16),
+        QPoint(18, 16),
+        QPoint(18, 18),
+        QPoint(18, 15),
+        QPoint(19, 15),
+        QPoint(6, 14),
+        QPoint(5, 15),
+        QPoint(4, 16),
+        QPoint(3, 17),
+        QPoint(2, 18),
+        QPoint(9, 14),
+        QPoint(8, 15),
+        QPoint(7, 16),
+        QPoint(6, 17),
+        QPoint(5, 18),
+        QPoint(4, 19),
+        QPoint(4, 20),
+        QPoint(4, 21),
+        QPoint(6, 12),
+        QPoint(1, 18),
+        QPoint(2, 14),
+        QPoint(2, 13),
+        QPoint(2, 15),
+        QPoint(14, 12),
+        QPoint(13, 12),
+        QPoint(13, 11),
+        QPoint(14, 11),
+        QPoint(14, 13),
+        QPoint(13, 13),
+        QPoint(8, 19),
+        QPoint(7, 19),
+        QPoint(7, 20),
+        QPoint(14, 22),
+        QPoint(15, 22),
+        QPoint(16, 22),
+        QPoint(16, 20),
+        QPoint(16, 21),
+        QPoint(16, 19),
+        QPoint(20, 18),
+        QPoint(20, 19),
+        QPoint(20, 20),
+        QPoint(19, 20),
+        QPoint(18, 20),
+        QPoint(18, 21),
+        QPoint(18, 22),
+        QPoint(19, 22),
+        QPoint(20, 22),
+        QPoint(21, 22),
+        QPoint(22, 22),
+        QPoint(22, 18),
+        QPoint(22, 19),
+        QPoint(22, 20),
+        QPoint(10, 19),
+        QPoint(9, 19),
+        QPoint(11, 21),
+        QPoint(11, 19),
+        QPoint(11, 20),
+        QPoint(11, 18),
+        QPoint(11, 17),
+        QPoint(10, 17),
+        QPoint(11, 22),
+        QPoint(12, 20),
+        QPoint(12, 19),
+        QPoint(12, 21),
+        QPoint(2, 21),
+        QPoint(3, 21),
+        QPoint(2, 22),
+        QPoint(3, 22),
+        QPoint(4, 22),
+        QPoint(7, 21),
+        QPoint(7, 22),
+        QPoint(8, 22),
+        QPoint(9, 22),
+        QPoint(9, 21),
+        QPoint(16, 17),
+        QPoint(17, 17),
+        QPoint(18, 17),
+        QPoint(16, 18),
+        QPoint(15, 19),
+        QPoint(14, 19),
+        QPoint(13, 5),
+        QPoint(13, 6),
+        QPoint(14, 6)
+    };
+
+    QVector<QPoint> lvl3 = {
+        QPoint(4, 4), QPoint(5, 4), QPoint(6, 4),
+        QPoint(4, 5), QPoint(6, 5),
+        QPoint(4, 6), QPoint(5, 6), QPoint(6, 6),
+        QPoint(10, 10), QPoint(11, 10), QPoint(12, 10),
+        QPoint(10, 11), QPoint(12, 11),
+        QPoint(10, 12), QPoint(11, 12), QPoint(12, 12),
+        QPoint(15, 15), QPoint(16, 15), QPoint(17, 15)
+    };
+
+    levels = { lvl1, lvl2, lvl3 };
+}
+
+void MainWindow::initMaze(int levelNumber)
 {
     maze.clear();
     maze.resize(rows);
     for (int y = 0; y < rows; ++y) {
-        maze[y].resize(cols);
-        for (int x = 0; x < cols; ++x) {
-            if (x==0 || y==0 || x==cols-1 || y==rows-1 ||
-                (y==3 && x>2 && x<cols-3) ||
-                (x==3 && y>2 && y<rows-3) ||
-                (y==6 && x>5 && x<cols-4) ||
-                (x==6 && y>5 && y<rows-4) ||
-                (y==16 && x>2 && x<cols-2) ||
-                (x==15 && y>5 && y<rows-6) ||
-                (x==17 && y>4 && y<rows-3))
-                maze[y][x] = 1;
-            else
-                maze[y][x] = 0;
-        }
+        maze[y].resize(cols, 0);
     }
+
+    // Add boundary walls automatically
+    for (int x = 0; x < cols; x++) {
+        maze[0][x] = 1;
+        maze[rows - 1][x] = 1;
+    }
+    for (int y = 0; y < rows; y++) {
+        maze[y][0] = 1;
+        maze[y][cols - 1] = 1;
+    }
+
+    // Load current level walls
+    if (levelNumber <= 0 || levelNumber > levels.size())
+        levelNumber = 1;
+
+    const QVector<QPoint> &currentWalls = levels[levelNumber - 1];
+    for (const QPoint &p : currentWalls) {
+        if (p.x() >= 0 && p.x() < cols && p.y() >= 0 && p.y() < rows)
+            maze[p.y()][p.x()] = 1;
+    }
+
+    // Reset player position
+    playerX = 1;
+    playerY = 1;
 }
 
 void MainWindow::initFood()
@@ -84,7 +487,7 @@ void MainWindow::initEnemies()
         Qt::red,         // color
         EnemyType::Smart,// type
         topLeft,         // habitat
-        1,               // moveInterval: slower than player (every 1 frames)
+        1,               // moveInterval: slower than player (every 2 frames)
         0                // cooldown
     });
 
@@ -106,7 +509,7 @@ void MainWindow::initEnemies()
         Qt::green,
         EnemyType::Simple,
         QRect(), // unused
-        1,       // even slower: every 1 frames
+        1,       // even slower: every 3 frames
         0
     });
 
@@ -127,6 +530,17 @@ void drawBlock(QImage &img, int gx, int gy, int cellSize, QColor color)
     for(int py = gy * cellSize; py < (gy+1)*cellSize; py++)
         for(int px = gx * cellSize; px < (gx+1)*cellSize; px++)
             img.setPixel(px, py, color.rgb());
+}
+
+void drawFood(QImage &img, int gx, int gy, int cellSize, QColor color)
+{
+    int dotSize = cellSize / 4;  // small dot (1/4th of cell)
+    int startX = gx * cellSize + (cellSize - dotSize) / 2;
+    int startY = gy * cellSize + (cellSize - dotSize) / 2;
+
+    for (int y = startY; y < startY + dotSize; ++y)
+        for (int x = startX; x < startX + dotSize; ++x)
+            img.setPixel(x, y, color.rgb());
 }
 
 // --- A* helpers ---
@@ -332,9 +746,9 @@ void MainWindow::updateFrame()
             if (maze[y][x] == 1)
                 drawBlock(img, x, y, cellSize, Qt::darkBlue);
 
-    // FOOD
+    // FOOD (draw smaller dots)
     for (auto &f : food)
-        drawBlock(img, f.first, f.second, cellSize, Qt::white);
+        drawFood(img, f.first, f.second, cellSize, Qt::white);
 
     // ENEMIES
     for(auto &e : enemies) {
