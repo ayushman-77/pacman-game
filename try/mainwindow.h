@@ -17,10 +17,74 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
+#include <QPainter>
+#include <QFontDatabase>
 
 #include "my_label.h"  // your label header
 
-// Enemy types
+// ==============================
+// 🎨 MINECRAFT-STYLE UI CLASSES
+// ==============================
+
+// ----- Blocky HUD Label with subtle blink -----
+class RetroLabel : public QLabel
+{
+    Q_OBJECT
+public:
+    explicit RetroLabel(const QString &text, QWidget *parent = nullptr);
+private slots:
+    void toggleGlow();
+private:
+    QTimer *blinkTimer;
+    bool bright;
+};
+
+// ----- Game HUD (Score / Lives / Level) -----
+class GameHUD : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit GameHUD(QWidget *parent = nullptr);
+
+    // Update HUD values
+    void setScore(int value);
+    void setLives(int value);
+    void setLevel(int value);
+
+private:
+    QLabel *scoreLabel;
+    QLabel *livesLabel;
+    QLabel *levelLabel;
+
+    // helper to apply consistent blocky style
+    void updateStyle(QLabel *label, const QString &colorName);
+};
+
+// ----- CRT Overlay (subtle scanline layer) -----
+class CRTOverlay : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit CRTOverlay(QWidget *parent = nullptr)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setOpacity(0.08);
+        p.setPen(QPen(Qt::black, 1));
+        for (int y = 0; y < height(); y += 3)
+            p.drawLine(0, y, width(), y);
+    }
+};
+
+// ==============================
+// 🕹️ GAME LOGIC STRUCTURES
+// ==============================
+
 enum class EnemyType { Simple, Smart };
 
 struct Enemy {
@@ -33,24 +97,29 @@ struct Enemy {
     int cooldown;
 };
 
+// ==============================
+// 🧠 MAIN WINDOW
+// ==============================
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 protected:
+    // handle keyboard input
     void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;   // ✅ NEW: stop moving when released
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    // ----- GAME / GRID -----
+    // ----- GRID AND PLAYER -----
     MyLabel *frame;
     int cellSize;
     int rows, cols;
-
     QVector<QVector<int>> maze;
     QSet<QPair<int,int>> food;
     QVector<Enemy> enemies;
@@ -59,20 +128,26 @@ private:
     int playerDirX, playerDirY;
     bool mouthOpen;
 
-    // ----- LEVELS -----
+    // ✅ Track held keys for more responsive control
+    QSet<int> pressedKeys;
+
+    // ----- LEVEL CONTROL -----
     QVector<QVector<QPoint>> levels; // 4 levels
     int currentLevel;
 
-    // ----- TIMER -----
+    // ----- GAME TIMER -----
     QTimer *gameTimer;
 
-    // ----- LIVES -----
+    // ----- PLAYER STATS -----
     int lives;
+    int score;
 
-    // ----- GLOBAL EXIT BUTTON (top-right, outside frame) -----
-    QPushButton *exitBtn;
+    // ----- UI ELEMENTS -----
+    GameHUD *hud;           // HUD bar
+    CRTOverlay *crtOverlay; // scanline overlay
+    QPushButton *exitBtn;   // top-right exit button
 
-    // ----- LEVEL SELECT OVERLAY (inside window, above frame) -----
+    // ----- MENU OVERLAY -----
     QWidget *menuOverlay = nullptr;
     QPushButton *btnLvl1 = nullptr;
     QPushButton *btnLvl2 = nullptr;
@@ -81,29 +156,32 @@ private:
     QPushButton *btnMenuExit = nullptr;
 
     // ----- INITIALIZATION -----
-    void setupLevels();                // defines 4 levels
-    void initMaze(int levelNumber);
+    void setupLevels();              // prepare 4 maze levels
+    void initMaze(int levelNumber);  // load selected maze
     void initFood();
     void initEnemies();
 
-    // ----- GAME MECHANICS -----
+    // ----- GAMEPLAY -----
     bool isWalkable(int x, int y) const;
     bool aStarNextStep(int sx, int sy, int tx, int ty, int &nx, int &ny);
     void moveEnemies();
     void checkCollisions();
     void updateFrame();
 
-    // ----- DRAW -----
+    // ----- DRAW HELPERS -----
     void drawLives(QImage &img);
 
     // ----- GAME FLOW -----
     void startGame(int level);
     void stopGame();
-    void showLevelSelect();            // shows the overlay
+    void showLevelSelect();
 
-    // ----- UI builders -----
-    void ensureMenuOverlay();          // creates overlay if needed
-    void positionOverlay();            // matches overlay to frame area
+    // ----- MENU BUILDERS -----
+    void ensureMenuOverlay();
+    void positionOverlay();
+
+    // ----- UI SYNC -----
+    void updateHUD(); // synchronize HUD (score/lives/level)
 };
 
 #endif // MAINWINDOW_H
