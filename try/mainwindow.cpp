@@ -6,56 +6,91 @@
 #include <vector>
 #include <limits>
 #include <QMap>
+#include <QFontDatabase>
 
 // Hash for QPair<int,int> so we can use QSet
 inline uint qHash(const QPair<int,int> &key, uint seed = 0) {
     return qHash(key.first, seed) ^ (qHash(key.second, seed) << 1);
 }
 
+void MainWindow::updateHUD()
+{
+    if (!hud) return;
+    hud->setScore(score);
+    hud->setLives(lives);
+    hud->setLevel(currentLevel);
+}
+
+
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), cellSize(25), rows(25), cols(25),
+    : QMainWindow(parent),
+    cellSize(25), rows(25), cols(25),
     playerX(1), playerY(1), mouthOpen(0),
-    playerDirX(1), playerDirY(0), currentLevel(1),
+    playerDirX(0), playerDirY(0), currentLevel(1),
     gameTimer(new QTimer(this)),
-    lives(3),
+    lives(3), score(0),
     exitBtn(new QPushButton("Exit", this))
 {
+    // ✅ FIX: Setup all level data first
+    setupLevels();
+
+    // Initialize frame
     frame = new MyLabel(this);
     frame->setFixedSize(cols * cellSize, rows * cellSize);
     frame->setStyleSheet("background:black");
-    setCentralWidget(frame);
 
-    // Timer wiring
+    // Initialize HUD and overlay
+    hud = new GameHUD(this);
+    crtOverlay = new CRTOverlay(frame);
+    crtOverlay->resize(frame->size());
+    crtOverlay->raise();
+
+    // Stack layout
+    auto layout = new QVBoxLayout();
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(hud);
+    layout->addWidget(frame);
+
+    QWidget *container = new QWidget(this);
+    container->setLayout(layout);
+    setCentralWidget(container);
+
+    // Timer setup
     connect(gameTimer, &QTimer::timeout, this, &MainWindow::updateFrame);
 
-    // Global Exit button (outside frame, top-right)
-    exitBtn->setFocusPolicy(Qt::NoFocus); // do not steal key focus
-    exitBtn->raise();
-    // Optional: make a bit smaller & tuck in corner
+    // Exit button setup
+    exitBtn->setFocusPolicy(Qt::NoFocus);
     QFont f = exitBtn->font();
     f.setPointSize(8);
     exitBtn->setFont(f);
     exitBtn->setFixedSize(50, 22);
     exitBtn->move(width() - exitBtn->width() - 1, 1);
+    exitBtn->raise();
 
-    connect(exitBtn, &QPushButton::clicked, this, [this](){
+    connect(exitBtn, &QPushButton::clicked, this, [this]() {
         stopGame();
-        auto r = QMessageBox::question(this, "Exit",
-                                       "Exit the game?",
+        auto r = QMessageBox::question(this, "Exit", "Exit the game?",
                                        QMessageBox::Yes | QMessageBox::No);
-        if (r == QMessageBox::Yes) {
+        if (r == QMessageBox::Yes)
             close();
-        } else {
+        else
             showLevelSelect();
-        }
     });
 
-    // Show the level-select overlay after window shows
-    QTimer::singleShot(0, this, [this](){
+    // ✅ Initialize level data safely
+    initMaze(currentLevel);
+    initFood();
+    initEnemies();
+
+    // Show level-select overlay after startup
+    QTimer::singleShot(0, this, [this]() {
         ensureMenuOverlay();
         showLevelSelect();
     });
 }
+
+
 
 MainWindow::~MainWindow() {}
 
@@ -63,7 +98,7 @@ MainWindow::~MainWindow() {}
 
 void MainWindow::setupLevels() {
     // Level 1 – custom
-    QVector<QPoint> lvl1 = {
+    QVector<QPoint> lvl4 = {
         QPoint(1, 2), QPoint(2, 2), QPoint(3, 2), QPoint(3, 3), QPoint(3, 4), QPoint(2, 4),
         QPoint(6, 2), QPoint(6, 3), QPoint(6, 4), QPoint(7, 4), QPoint(8, 4), QPoint(8, 3),
         QPoint(10, 10), QPoint(11, 10), QPoint(12, 10), QPoint(13, 10), QPoint(15, 10),
@@ -170,7 +205,7 @@ void MainWindow::setupLevels() {
     };
 
     // Level 4 – custom classic-ish
-    QVector<QPoint> lvl4 = {
+    QVector<QPoint> lvl1 = {
         QPoint(2,2), QPoint(2,3), QPoint(2,4), QPoint(2,5), QPoint(2,6), QPoint(3,2), QPoint(4,2),
         QPoint(5,2), QPoint(6,2), QPoint(7,2), QPoint(6,3), QPoint(3,6), QPoint(2,7), QPoint(6,4),
         QPoint(4,6), QPoint(22,2), QPoint(21,2), QPoint(20,2), QPoint(19,2), QPoint(18,2), QPoint(17,2),
@@ -253,10 +288,45 @@ void MainWindow::initEnemies()
     QRect bottomLeft(0, rows/2, cols/2, rows - rows/2);
     QRect bottomRight(cols/2, rows/2, cols - cols/2, rows - rows/2);
 
-    enemies.push_back(Enemy{ 10, 2, 1, 0, Qt::red,      EnemyType::Smart,  topLeft,   1, 0 });
-    enemies.push_back(Enemy{ cols-2, 1, -1,0, Qt::magenta, EnemyType::Smart, topRight,  1, 1 });
-    enemies.push_back(Enemy{ 1, rows-2, 1, 0, Qt::green,  EnemyType::Simple, QRect(),   1, 0 });
-    enemies.push_back(Enemy{ cols-2, rows-2, 0,-1, Qt::blue,  EnemyType::Simple, QRect(),1, 1 });
+    // ---------- LEVEL 1 ----------
+    if (currentLevel == 1)
+    {
+        enemies.push_back(Enemy{ 1, rows-2,  1, 0, Qt::green,  EnemyType::Simple, QRect(), 1, 0 });
+        enemies.push_back(Enemy{ cols-2, rows-2, 0,-1, Qt::blue,   EnemyType::Simple, QRect(), 1, 1 });
+        enemies.push_back(Enemy{ cols/2, 1, 1, 0, Qt::red, EnemyType::Simple, QRect(), 1, 0 });
+        return;
+    }
+
+    // ---------- LEVEL 2 ----------
+    if (currentLevel == 2)
+    {
+        // Smart enemy in top-left quadrant
+        enemies.push_back(Enemy{ 10, 2, 1, 0, Qt::red, EnemyType::Smart, topLeft, 1, 0 });
+
+        // Simple enemies
+        enemies.push_back(Enemy{ cols-2, rows-2, 0,-1, Qt::blue, EnemyType::Simple, QRect(), 1, 0 });
+        enemies.push_back(Enemy{ 1, rows-2, 1, 0, Qt::green, EnemyType::Simple, QRect(), 1, 0 });
+        return;
+    }
+
+    // ---------- LEVEL 3 ----------
+    if (currentLevel == 3)
+    {
+        enemies.push_back(Enemy{ 10, 2, 1, 0, Qt::red,      EnemyType::Smart,  topLeft,   1, 0 });
+        enemies.push_back(Enemy{ cols-2, 1, -1,0, Qt::magenta, EnemyType::Smart, topRight,  1, 1 });
+        enemies.push_back(Enemy{ 1, rows-2, 1, 0, Qt::green,  EnemyType::Simple, QRect(),   1, 0 });
+        enemies.push_back(Enemy{ cols-2, rows-2, 0,-1, Qt::blue,  EnemyType::Simple, QRect(),1, 1 });
+        return;
+    }
+
+    // ---------- LEVEL 4 ----------
+    if (currentLevel == 4)
+    {
+        enemies.push_back(Enemy{ 10, 2, 1, 0, Qt::cyan,   EnemyType::Smart,  topLeft, 1, 0 });
+        enemies.push_back(Enemy{ 22, 22, -1,0, Qt::green, EnemyType::Smart, bottomRight, 1, 0 });
+        enemies.push_back(Enemy{ 2, 22, 1, 0, Qt::white,  EnemyType::Smart, bottomLeft, 1, 0 });
+        return;
+    }
 }
 
 void drawBlock(QImage &img, int gx, int gy, int cellSize, QColor color)
@@ -390,8 +460,15 @@ void MainWindow::moveEnemies()
 
 void MainWindow::checkCollisions()
 {
+    // inside MainWindow::checkCollisions()
     auto cur = qMakePair(playerX, playerY);
-    if (food.contains(cur)) food.remove(cur);
+    if (food.contains(cur)) {
+        food.remove(cur);
+        score += 10;        // give points for eating
+        updateHUD();        // immediately refresh HUD
+    }
+
+
 
     for (auto &e : enemies)
         if (e.x == playerX && e.y == playerY) {
@@ -401,6 +478,9 @@ void MainWindow::checkCollisions()
 
             // Life handling (no audio)
             lives -= 1;
+            updateHUD();  // 🎯 refresh HUD immediately
+
+
 
             if (lives <= 0) {
                 // stop movement, small delay (300ms) then go to level select
@@ -416,6 +496,26 @@ void MainWindow::checkCollisions()
 void MainWindow::updateFrame()
 {
     mouthOpen = !mouthOpen;
+
+    // If a direction is set, attempt to move the player this tick.
+    if (!(playerDirX == 0 && playerDirY == 0)) {
+        int nx = playerX + playerDirX;
+        int ny = playerY + playerDirY;
+        if (isWalkable(nx, ny)) {
+            playerX = nx;
+            playerY = ny;
+
+            // Eat food immediately and update score/HUD
+            auto cur = qMakePair(playerX, playerY);
+            if (food.contains(cur)) {
+                food.remove(cur);
+                score += 10;
+                updateHUD();
+            }
+        }
+    }
+
+    // Move enemies and check collisions every tick regardless of player movement
     moveEnemies();
     checkCollisions();
 
@@ -423,22 +523,23 @@ void MainWindow::updateFrame()
     if (food.isEmpty()) {
         if (gameTimer->isActive()) {
             gameTimer->stop();
-            showLevelSelect(); // back to menu on success
+            showLevelSelect();
             return;
         }
     }
 
+    // --- draw the whole scene (maze, food, enemies, player, etc.) ---
     QImage img(frame->width(), frame->height(), QImage::Format_RGB32);
     img.fill(Qt::black);
 
     // MAZE
-    for(int y=0; y<rows; y++)
-        for(int x=0; x<cols; x++)
+    for (int y = 0; y < rows; ++y)
+        for (int x = 0; x < cols; ++x)
             if (maze[y][x] == 1)
                 drawBlock(img, x, y, cellSize, Qt::darkBlue);
 
-    // FOOD dots (smaller centered)
-    for (auto &f : food) {
+    // FOOD dots
+    for (const auto &f : food) {
         int gx = f.first, gy = f.second;
         int dot = cellSize / 4;
         int sx = gx * cellSize + (cellSize - dot) / 2;
@@ -449,87 +550,78 @@ void MainWindow::updateFrame()
     }
 
     // ENEMIES
-    for(auto &e : enemies) {
+    for (const auto &e : enemies)
         drawBlock(img, e.x, e.y, cellSize, e.color);
-    }
 
     // PAC-MAN
     drawBlock(img, playerX, playerY, cellSize, Qt::yellow);
 
-    // Wedge mouth raster cut
-    if (mouthOpen)
-    {
+    // mouth wedge...
+    if (mouthOpen) {
         int px = playerX * cellSize;
         int py = playerY * cellSize;
-
-        for(int y=0; y<cellSize; y++)
-            for(int x=0; x<cellSize; x++)
-            {
+        for (int y = 0; y < cellSize; ++y)
+            for (int x = 0; x < cellSize; ++x) {
                 int rx = px + x, ry = py + y;
-                float dx = x - cellSize/2;
-                float dy = y - cellSize/2;
-                float angle = atan2(dy, dx) * 180.0 / M_PI;
-
+                float dx = x - cellSize / 2.0f;
+                float dy = y - cellSize / 2.0f;
+                float angle = atan2(dy, dx) * 180.0f / M_PI;
                 bool cut = false;
-
                 if (playerDirX == 1 && angle > -30 && angle < 30) cut = true;
                 if (playerDirX == -1 && (angle > 150 || angle < -150)) cut = true;
                 if (playerDirY == 1 && angle > 60 && angle < 120) cut = true;
                 if (playerDirY == -1 && angle > -120 && angle < -60) cut = true;
-
-                if (cut)
-                    img.setPixel(rx, ry, QColor(Qt::black).rgb());
+                if (cut) img.setPixel(rx, ry, QColor(Qt::black).rgb());
             }
     }
-
-    // Draw lives at bottom-left
-    drawLives(img);
 
     frame->setPixmap(QPixmap::fromImage(img));
 }
 
+
 void MainWindow::keyPressEvent(QKeyEvent *e)
 {
-    if (menuOverlay && menuOverlay->isVisible()) {
-        // ignore key movement while menu is open
-        e->ignore();
-        return;
-    }
+    if (menuOverlay && menuOverlay->isVisible()) { e->ignore(); return; }
 
-    int nx = playerX, ny = playerY;
+    // set direction when key pressed (do NOT move immediately here)
+    if (e->key() == Qt::Key_Left)  { playerDirX = -1; playerDirY = 0; }
+    if (e->key() == Qt::Key_Right) { playerDirX = 1;  playerDirY = 0; }
+    if (e->key() == Qt::Key_Up)    { playerDirX = 0;  playerDirY = -1; }
+    if (e->key() == Qt::Key_Down)  { playerDirX = 0;  playerDirY = 1; }
+}
 
-    if(e->key()==Qt::Key_Left)  { nx--; playerDirX=-1; playerDirY=0; }
-    if(e->key()==Qt::Key_Right) { nx++; playerDirX=1;  playerDirY=0; }
-    if(e->key()==Qt::Key_Up)    { ny--; playerDirX=0;  playerDirY=-1; }
-    if(e->key()==Qt::Key_Down)  { ny++; playerDirX=0;  playerDirY=1; }
+void MainWindow::keyReleaseEvent(QKeyEvent *e)
+{
+    if (menuOverlay && menuOverlay->isVisible()) { e->ignore(); return; }
 
-    // move only if not wall
-    if (!maze[ny][nx]) {
-        playerX = nx;
-        playerY = ny;
-
-        // eat food immediately (no SFX)
-        auto cur = qMakePair(playerX, playerY);
-        if (food.contains(cur))
-            food.remove(cur);
+    if (e->key() == Qt::Key_Left ||
+        e->key() == Qt::Key_Right ||
+        e->key() == Qt::Key_Up ||
+        e->key() == Qt::Key_Down)
+    {
+        // stop immediately when the arrow key is released
+        playerDirX = 0;
+        playerDirY = 0;
     }
 }
 
-// ----- LIVES RENDER -----
-void MainWindow::drawLives(QImage &img) {
-    // Bottom-left, 3 red squares (grey if lost)
-    int size = cellSize / 2;
-    int margin = 6;
-    int y = img.height() - size - margin;
 
-    for (int i = 0; i < 3; ++i) {
-        int x = margin + i * (size + 6);
-        QColor c = (i < lives) ? QColor(255,60,60) : QColor(80,80,80);
-        for (int py = y; py < y + size; ++py)
-            for (int px = x; px < x + size; ++px)
-                img.setPixel(px, py, c.rgb());
-    }
-}
+
+// // ----- LIVES RENDER -----
+// void MainWindow::drawLives(QImage &img) {
+//     // Bottom-left, 3 red squares (grey if lost)
+//     int size = cellSize / 2;
+//     int margin = 6;
+//     int y = img.height() - size - margin;
+
+//     for (int i = 0; i < 3; ++i) {
+//         int x = margin + i * (size + 6);
+//         QColor c = (i < lives) ? QColor(255,60,60) : QColor(80,80,80);
+//         for (int py = y; py < y + size; ++py)
+//             for (int px = x; px < x + size; ++px)
+//                 img.setPixel(px, py, c.rgb());
+//     }
+// }
 
 // ----- GAME FLOW -----
 void MainWindow::startGame(int level) {
@@ -542,6 +634,7 @@ void MainWindow::startGame(int level) {
 
     lives = 3;
     mouthOpen = 0;
+    updateHUD();  // ✅ show correct Level/Lives/Score immediately
 
     if (!gameTimer->isActive()) gameTimer->start(120);
 
@@ -639,3 +732,134 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     positionOverlay();
     QMainWindow::resizeEvent(event);
 }
+
+// =====================
+// 🎨 RETRO UI IMPLEMENTATION
+// =====================
+
+// ----- RetroLabel -----
+RetroLabel::RetroLabel(const QString &text, QWidget *parent)
+    : QLabel(text, parent), bright(true)
+{
+    setAlignment(Qt::AlignCenter);
+    setStyleSheet(R"(
+        color: #FFFFFF;
+        font-family: 'Press Start 2P', monospace;
+        font-size: 18px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        background-color: #222222;
+        border: 3px solid #555555;
+        border-radius: 6px;
+        padding: 8px 16px;
+        box-shadow: 2px 2px 0 #000000;
+    )");
+
+    blinkTimer = new QTimer(this);
+    connect(blinkTimer, &QTimer::timeout, this, &RetroLabel::toggleGlow);
+    blinkTimer->start(600);
+}
+
+void RetroLabel::toggleGlow()
+{
+    bright = !bright;
+    if (bright)
+        setStyleSheet(R"(
+            color: #FFFFFF;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            background-color: #222222;
+            border: 3px solid #777777;
+            border-radius: 6px;
+            padding: 8px 16px;
+            box-shadow: 2px 2px 0 #000000;
+        )");
+    else
+        setStyleSheet(R"(
+            color: #CCCCCC;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            background-color: #1C1C1C;
+            border: 3px solid #555555;
+            border-radius: 6px;
+            padding: 8px 16px;
+            box-shadow: 2px 2px 0 #000000;
+        )");
+}
+
+
+
+// ----- GameHUD -----
+// ----- GameHUD -----
+GameHUD::GameHUD(QWidget *parent) : QWidget(parent)
+{
+    auto layout = new QHBoxLayout(this);
+    layout->setContentsMargins(20, 10, 20, 10);
+    layout->setSpacing(30);
+
+    // Create labels
+    scoreLabel = new QLabel("SCORE: 0000", this);
+    livesLabel = new QLabel("LIVES: ❤❤❤", this);  // ❤️ default lives displayed
+    levelLabel = new QLabel("LEVEL: 1", this);
+
+    // Apply consistent Minecraft-like styling
+    updateStyle(scoreLabel, "yellow");
+    updateStyle(livesLabel, "red");
+    updateStyle(levelLabel, "dodgerblue");
+
+    layout->addWidget(scoreLabel);
+    layout->addWidget(livesLabel);
+    layout->addWidget(levelLabel);
+    layout->addStretch(1);
+
+    setLayout(layout);
+    setStyleSheet(R"(
+        background-color: #2E2E2E;
+        border-bottom: 4px solid #555555;
+    )");
+}
+
+// Apply style individually for color customization
+void GameHUD::updateStyle(QLabel *lbl, const QString &colorName)
+{
+    lbl->setStyleSheet(QString(R"(
+        color: %1;
+        font-family: 'Press Start 2P', monospace;
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #3A3A3A;
+        border: 2px solid #5A5A5A;
+        border-radius: 6px;
+        padding: 10px 16px;
+        margin: 4px;
+    )").arg(colorName));
+}
+
+// Update values dynamically
+void GameHUD::setScore(int value)
+{
+    scoreLabel->setText(QString("SCORE: %1").arg(value, 4, 10, QLatin1Char('0')));
+}
+
+void GameHUD::setLives(int value)
+{
+    // Build hearts string dynamically
+    QString hearts;
+    for (int i = 0; i < value; ++i)
+        hearts += "❤ ";
+    if (value <= 0) hearts = "💀";
+
+    livesLabel->setText(QString("LIVES: %1").arg(hearts.trimmed()));
+}
+
+void GameHUD::setLevel(int value)
+{
+    levelLabel->setText(QString("LEVEL: %1").arg(value));
+}
+
+
+
