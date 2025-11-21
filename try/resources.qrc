@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/sounds">
+        <file>eat.mp3</file>
+        <file>death.mp3</file>
+        <file>win.mp3</file>
+        <file>bgm.mp3</file>
+        <file>eat.wav</file>
+        <file>death.wav</file>
+        <file>win.wav</file>
+    </qresource>
+</RCC>

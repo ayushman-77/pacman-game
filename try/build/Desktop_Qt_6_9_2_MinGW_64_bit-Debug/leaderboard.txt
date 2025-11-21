@@ -1,0 +1,23 @@
+me 520
+y 520
+me 870
+me 870
+no 870
+Player 870
+i,220
+i,220
+j,220
+Player,220
+I,220
+I,220
+we,1430
+we,1430
+World,290
+World,290
+die,220
+die,220
+die,1110
+die,1110
+killme,1010
+killme,1010
+Iwannadie,640
